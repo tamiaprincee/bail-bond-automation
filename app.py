@@ -5,6 +5,7 @@ from datetime import datetime
 import subprocess
 import smtplib
 from email.message import EmailMessage
+import PyPDF2  # For PDF reading
 
 UPLOAD_DIR = "uploads"
 OUTPUT_DIR = "outputs"
@@ -13,6 +14,7 @@ TEMPLATE_FILE = "Surety_Bond_Template.docx"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# Convert .doc to .docx
 def convert_doc_to_docx(input_path):
     subprocess.run([
         "soffice", "--headless", "--convert-to", "docx", "--outdir", UPLOAD_DIR, input_path
@@ -20,17 +22,27 @@ def convert_doc_to_docx(input_path):
     base = os.path.splitext(os.path.basename(input_path))[0]
     return os.path.join(UPLOAD_DIR, base + ".docx")
 
-def extract_data(doc_path):
-    doc = Document(doc_path)
+# Extract text from PDF
+def extract_text_from_pdf(pdf_path):
+    with open(pdf_path, "rb") as f:
+        reader = PyPDF2.PdfReader(f)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text()
+        return text.splitlines()
+
+# Parse lines of text and extract data
+def extract_data_from_lines(lines):
     data = {}
-    for para in doc.paragraphs:
-        line = para.text.strip()
+    for line in lines:
+        line = line.strip()
         if "SID" in line: data['SID'] = line.split()[-1]
         elif "DOB" in line: data['DOB'] = line.split()[-1]
         elif "SEX" in line: data['SEX'] = line.split()[-1]
         elif "RACE" in line: data['RACE'] = line.split()[-1]
         elif "CASE" in line.upper(): data['CASE'] = line.split()[-1]
         elif "Charge" in line: data['CHARGE'] = ' '.join(line.split()[1:])
+        elif "Offense" in line: data['OFFENSE'] = line.split(":")[-1].strip()
         elif "Principal" in line: data['PRINCIPAL'] = line.split(":")[-1].strip()
         elif "Address" in line: data['ADDRESS'] = line.split(":")[-1].strip()
         elif "DL" in line: data['DL'] = line.split()[-1]
@@ -40,8 +52,21 @@ def extract_data(doc_path):
         elif "HAIR" in line: data['HAIR'] = line.split()[-1]
         elif "EYES" in line: data['EYES'] = line.split()[-1]
         elif "SUM" in line.upper(): data['SUM'] = line.split()[-1]
+        elif "County" in line: data['COUNTY'] = line.split(":")[-1].strip()
+        elif "Signed and Dated" in line or "Date Signed" in line: data['SIGNED_AND_DATED'] = line.split(":")[-1].strip()
     return data
 
+# Wrapper to handle both docx and pdf
+def extract_data(doc_path):
+    ext = os.path.splitext(doc_path)[-1].lower()
+    if ext == ".pdf":
+        lines = extract_text_from_pdf(doc_path)
+    else:
+        doc = Document(doc_path)
+        lines = [para.text for para in doc.paragraphs]
+    return extract_data_from_lines(lines)
+
+# Fill Word template
 def fill_template(template_path, output_path, data):
     doc = Document(template_path)
     for para in doc.paragraphs:
@@ -50,9 +75,10 @@ def fill_template(template_path, output_path, data):
                 para.text = para.text.replace(f"{{{{{key}}}}}", value)
     doc.save(output_path)
 
+# Email bond form
 def send_email_with_attachment(receiver_email, file_path, subject="New Surety Bond", body="Please find the completed bond form attached."):
     sender_email = "BigDawgBailBondz@gmail.com"
-    app_password = "kuyb gdxu llhg nzou"  # Your actual app password
+    app_password = "kuyb gdxu llhg nzou"
 
     msg = EmailMessage()
     msg['Subject'] = subject
@@ -67,15 +93,17 @@ def send_email_with_attachment(receiver_email, file_path, subject="New Surety Bo
         smtp.login(sender_email, app_password)
         smtp.send_message(msg)
 
+# Streamlit UI
 st.title("📝 Bail Bond Form Automation")
 
-uploaded_file = st.file_uploader("Upload Jail Form (.doc or .docx)", type=["doc", "docx"])
+uploaded_file = st.file_uploader("Upload Jail Form (.doc, .docx, or .pdf)", type=["doc", "docx", "pdf"])
 if uploaded_file is not None:
     raw_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
     with open(raw_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
 
-    if uploaded_file.name.endswith(".doc"):
+    ext = uploaded_file.name.lower().split(".")[-1]
+    if ext == "doc":
         st.info("Converting .doc to .docx...")
         docx_path = convert_doc_to_docx(raw_path)
     else:
@@ -101,6 +129,5 @@ if uploaded_file is not None:
                 st.success("📧 A copy has been emailed to 3gtexan@gmail.com")
             except Exception as e:
                 st.warning(f"⚠️ Document created, but email failed to send: {e}")
-
     except Exception as e:
         st.error(f"⚠️ Error during processing: {e}")
