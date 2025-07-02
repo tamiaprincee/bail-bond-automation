@@ -5,7 +5,10 @@ from datetime import datetime
 import subprocess
 import smtplib
 from email.message import EmailMessage
-import PyPDF2  # For PDF reading
+import PyPDF2  # For regular PDFs
+from pdf2image import convert_from_path  # For scanned PDFs
+import pytesseract
+from PIL import Image
 
 UPLOAD_DIR = "uploads"
 OUTPUT_DIR = "outputs"
@@ -14,7 +17,9 @@ TEMPLATE_FILE = "Surety_Bond_Template.docx"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Convert .doc to .docx
+# Optional: uncomment if you're testing locally with Windows
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
 def convert_doc_to_docx(input_path):
     subprocess.run([
         "soffice", "--headless", "--convert-to", "docx", "--outdir", UPLOAD_DIR, input_path
@@ -22,16 +27,34 @@ def convert_doc_to_docx(input_path):
     base = os.path.splitext(os.path.basename(input_path))[0]
     return os.path.join(UPLOAD_DIR, base + ".docx")
 
-# Extract text from PDF
 def extract_text_from_pdf(pdf_path):
-    with open(pdf_path, "rb") as f:
-        reader = PyPDF2.PdfReader(f)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text()
+    try:
+        with open(pdf_path, "rb") as f:
+            reader = PyPDF2.PdfReader(f)
+            text = ""
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text
+        if not text.strip():
+            st.warning("Standard PDF text extraction failed, using OCR...")
+            return extract_text_from_scanned_pdf(pdf_path)
         return text.splitlines()
+    except Exception as e:
+        st.warning(f"Text extraction failed. Trying OCR... {e}")
+        return extract_text_from_scanned_pdf(pdf_path)
 
-# Parse lines of text and extract data
+def extract_text_from_scanned_pdf(pdf_path):
+    try:
+        images = convert_from_path(pdf_path)
+        text = ""
+        for img in images:
+            text += pytesseract.image_to_string(img)
+        return text.splitlines()
+    except Exception as e:
+        st.error(f"OCR extraction failed: {e}")
+        return []
+
 def extract_data_from_lines(lines):
     data = {}
     for line in lines:
@@ -56,7 +79,6 @@ def extract_data_from_lines(lines):
         elif "Signed and Dated" in line or "Date Signed" in line: data['SIGNED_AND_DATED'] = line.split(":")[-1].strip()
     return data
 
-# Wrapper to handle both docx and pdf
 def extract_data(doc_path):
     ext = os.path.splitext(doc_path)[-1].lower()
     if ext == ".pdf":
@@ -66,7 +88,6 @@ def extract_data(doc_path):
         lines = [para.text for para in doc.paragraphs]
     return extract_data_from_lines(lines)
 
-# Fill Word template
 def fill_template(template_path, output_path, data):
     doc = Document(template_path)
     for para in doc.paragraphs:
@@ -75,7 +96,6 @@ def fill_template(template_path, output_path, data):
                 para.text = para.text.replace(f"{{{{{key}}}}}", value)
     doc.save(output_path)
 
-# Email bond form
 def send_email_with_attachment(receiver_email, file_path, subject="New Surety Bond", body="Please find the completed bond form attached."):
     sender_email = "BigDawgBailBondz@gmail.com"
     app_password = "kuyb gdxu llhg nzou"
@@ -93,7 +113,7 @@ def send_email_with_attachment(receiver_email, file_path, subject="New Surety Bo
         smtp.login(sender_email, app_password)
         smtp.send_message(msg)
 
-# Streamlit UI
+# Streamlit app UI
 st.title("📝 Bail Bond Form Automation")
 
 uploaded_file = st.file_uploader("Upload Jail Form (.doc, .docx, or .pdf)", type=["doc", "docx", "pdf"])
@@ -131,3 +151,4 @@ if uploaded_file is not None:
                 st.warning(f"⚠️ Document created, but email failed to send: {e}")
     except Exception as e:
         st.error(f"⚠️ Error during processing: {e}")
+
