@@ -2,92 +2,15 @@ import os
 import streamlit as st
 from docx import Document
 from datetime import datetime
-import subprocess
 import smtplib
 from email.message import EmailMessage
-import PyPDF2  # For regular PDFs
-from pdf2image import convert_from_path  # For scanned PDFs
-import pytesseract
-from PIL import Image
 
-UPLOAD_DIR = "uploads"
-OUTPUT_DIR = "outputs"
+# Constants
 TEMPLATE_FILE = "Surety_Bond_Template.docx"
-
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+OUTPUT_DIR = "outputs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Optional: uncomment if you're testing locally with Windows
-# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-
-def convert_doc_to_docx(input_path):
-    subprocess.run([
-        "soffice", "--headless", "--convert-to", "docx", "--outdir", UPLOAD_DIR, input_path
-    ], check=True)
-    base = os.path.splitext(os.path.basename(input_path))[0]
-    return os.path.join(UPLOAD_DIR, base + ".docx")
-
-def extract_text_from_pdf(pdf_path):
-    try:
-        with open(pdf_path, "rb") as f:
-            reader = PyPDF2.PdfReader(f)
-            text = ""
-            for page in reader.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text
-        if not text.strip():
-            st.warning("Standard PDF text extraction failed, using OCR...")
-            return extract_text_from_scanned_pdf(pdf_path)
-        return text.splitlines()
-    except Exception as e:
-        st.warning(f"Text extraction failed. Trying OCR... {e}")
-        return extract_text_from_scanned_pdf(pdf_path)
-
-def extract_text_from_scanned_pdf(pdf_path):
-    try:
-        images = convert_from_path(pdf_path)
-        text = ""
-        for img in images:
-            text += pytesseract.image_to_string(img)
-        return text.splitlines()
-    except Exception as e:
-        st.error(f"OCR extraction failed: {e}")
-        return []
-
-def extract_data_from_lines(lines):
-    data = {}
-    for line in lines:
-        line = line.strip()
-        if "SID" in line: data['SID'] = line.split()[-1]
-        elif "DOB" in line: data['DOB'] = line.split()[-1]
-        elif "SEX" in line: data['SEX'] = line.split()[-1]
-        elif "RACE" in line: data['RACE'] = line.split()[-1]
-        elif "CASE" in line.upper(): data['CASE'] = line.split()[-1]
-        elif "Charge" in line: data['CHARGE'] = ' '.join(line.split()[1:])
-        elif "Offense" in line: data['OFFENSE'] = line.split(":")[-1].strip()
-        elif "Principal" in line: data['PRINCIPAL'] = line.split(":")[-1].strip()
-        elif "Address" in line: data['ADDRESS'] = line.split(":")[-1].strip()
-        elif "DL" in line: data['DL'] = line.split()[-1]
-        elif "STATE" in line: data['STATE'] = line.split()[-1]
-        elif "HT" in line: data['HT'] = line.split()[-1]
-        elif "WT" in line: data['WT'] = line.split()[-1]
-        elif "HAIR" in line: data['HAIR'] = line.split()[-1]
-        elif "EYES" in line: data['EYES'] = line.split()[-1]
-        elif "SUM" in line.upper(): data['SUM'] = line.split()[-1]
-        elif "County" in line: data['COUNTY'] = line.split(":")[-1].strip()
-        elif "Signed and Dated" in line or "Date Signed" in line: data['SIGNED_AND_DATED'] = line.split(":")[-1].strip()
-    return data
-
-def extract_data(doc_path):
-    ext = os.path.splitext(doc_path)[-1].lower()
-    if ext == ".pdf":
-        lines = extract_text_from_pdf(doc_path)
-    else:
-        doc = Document(doc_path)
-        lines = [para.text for para in doc.paragraphs]
-    return extract_data_from_lines(lines)
-
+# Fill the bond template
 def fill_template(template_path, output_path, data):
     doc = Document(template_path)
     for para in doc.paragraphs:
@@ -96,15 +19,16 @@ def fill_template(template_path, output_path, data):
                 para.text = para.text.replace(f"{{{{{key}}}}}", value)
     doc.save(output_path)
 
-def send_email_with_attachment(receiver_email, file_path, subject="New Surety Bond", body="Please find the completed bond form attached."):
+# Email the result to Mark
+def send_email_with_attachment(receiver_email, file_path):
     sender_email = "BigDawgBailBondz@gmail.com"
-    app_password = "kuyb gdxu llhg nzou"
+    app_password = "your_app_password_here"  # Replace with your actual app password
 
     msg = EmailMessage()
-    msg['Subject'] = subject
+    msg['Subject'] = "New Surety Bond"
     msg['From'] = sender_email
     msg['To'] = receiver_email
-    msg.set_content(body)
+    msg.set_content("Please find the completed bond form attached.")
 
     with open(file_path, 'rb') as f:
         msg.add_attachment(f.read(), maintype='application', subtype='octet-stream', filename=os.path.basename(file_path))
@@ -113,42 +37,47 @@ def send_email_with_attachment(receiver_email, file_path, subject="New Surety Bo
         smtp.login(sender_email, app_password)
         smtp.send_message(msg)
 
-# Streamlit app UI
-st.title("📝 Bail Bond Form Automation")
+# UI
+st.title("📝 Bail Bond Form Entry")
 
-uploaded_file = st.file_uploader("Upload Jail Form (.doc, .docx, or .pdf)", type=["doc", "docx", "pdf"])
-if uploaded_file is not None:
-    raw_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
-    with open(raw_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
+with st.form("bond_form"):
+    data = {
+        "PRINCIPAL": st.text_input("Principal Name"),
+        "SID": st.text_input("SID Number"),
+        "DOB": st.text_input("Date of Birth (MM/DD/YYYY)"),
+        "SEX": st.text_input("Sex"),
+        "RACE": st.text_input("Race"),
+        "CASE": st.text_input("Case Number"),
+        "CHARGE": st.text_input("Charge"),
+        "OFFENSE": st.text_input("Offense"),
+        "ADDRESS": st.text_input("Mailing Address"),
+        "DL": st.text_input("Driver’s License Number"),
+        "STATE": st.text_input("DL State"),
+        "HT": st.text_input("Height"),
+        "WT": st.text_input("Weight"),
+        "HAIR": st.text_input("Hair Color"),
+        "EYES": st.text_input("Eye Color"),
+        "COUNTY": st.text_input("County"),
+        "SUM": st.text_input("Penal Sum"),
+        "SIGNED_AND_DATED": st.text_input("Signed and Dated (MM/DD/YYYY)")
+    }
+    submitted = st.form_submit_button("Generate Bond Form")
 
-    ext = uploaded_file.name.lower().split(".")[-1]
-    if ext == "doc":
-        st.info("Converting .doc to .docx...")
-        docx_path = convert_doc_to_docx(raw_path)
-    else:
-        docx_path = raw_path
+# On form submit
+if submitted:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = f"filled_surety_bond_{timestamp}.docx"
+    output_path = os.path.join(OUTPUT_DIR, output_file)
 
-    st.success("✅ File ready! Extracting information...")
+    fill_template(TEMPLATE_FILE, output_path, data)
+
+    with open(output_path, "rb") as f:
+        st.download_button("⬇️ Download Completed Bond Form", f, file_name=output_file)
 
     try:
-        data = extract_data(docx_path)
-        st.write("📄 Extracted Info:", data)
-
-        if st.button("Generate Bond Form"):
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_file = f"filled_surety_bond_{timestamp}.docx"
-            output_path = os.path.join(OUTPUT_DIR, output_file)
-            fill_template(TEMPLATE_FILE, output_path, data)
-
-            with open(output_path, "rb") as f:
-                st.download_button("⬇️ Download Completed Bond Form", f, file_name=output_file)
-
-            try:
-                send_email_with_attachment("3gtexan@gmail.com", output_path)
-                st.success("📧 A copy has been emailed to 3gtexan@gmail.com")
-            except Exception as e:
-                st.warning(f"⚠️ Document created, but email failed to send: {e}")
+        send_email_with_attachment("3gtexan@gmail.com", output_path)
+        st.success("📧 A copy has been emailed to 3gtexan@gmail.com")
     except Exception as e:
-        st.error(f"⚠️ Error during processing: {e}")
+        st.warning(f"⚠️ Document created, but email failed to send: {e}")
+
 
