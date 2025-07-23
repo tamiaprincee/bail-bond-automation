@@ -22,7 +22,7 @@ def fill_template(template_path, output_path, data):
 # Email the result to Mark
 def send_email_with_attachment(receiver_email, file_path):
     sender_email = "BigDawgBailBondz@gmail.com"
-    app_password = "your_app_password_here"  # Replace with your actual app password
+    app_password = "your_app_password_here"  # Replace with actual app password
 
     msg = EmailMessage()
     msg['Subject'] = "New Surety Bond"
@@ -49,7 +49,7 @@ with st.form("bond_form"):
         "RACE": st.text_input("Race"),
         "CASE": st.text_input("Case Number"),
         "CHARGE": st.text_input("Charge"),
-        "OFFENSE": st.text_input("Offense"),
+        "MISDEMEANOR_OR_FELONY": st.text_input("Misdemeanor or Felony"),
         "ADDRESS": st.text_input("Mailing Address"),
         "DL": st.text_input("Driver’s License Number"),
         "STATE": st.text_input("DL State"),
@@ -58,7 +58,8 @@ with st.form("bond_form"):
         "HAIR": st.text_input("Hair Color"),
         "EYES": st.text_input("Eye Color"),
         "COUNTY": st.text_input("County"),
-        "SUM": st.text_input("Penal Sum"),
+        "BOND": st.text_input("Bond"),
+        "BACKING_AMOUNT": st.text_input("Amount to Back the Bond"),
         "SIGNED_AND_DATED": st.text_input("Signed and Dated (MM/DD/YYYY)")
     }
     submitted = st.form_submit_button("Generate Bond Form")
@@ -79,5 +80,6 @@ if submitted:
         st.success("📧 A copy has been emailed to 3gtexan@gmail.com")
     except Exception as e:
         st.warning(f"⚠️ Document created, but email failed to send: {e}")
+
 
 
