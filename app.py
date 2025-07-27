@@ -1,6 +1,9 @@
 import os
 import streamlit as st
 from docx import Document
+from docx.shared import Pt
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 from datetime import datetime
 import smtplib
 from email.message import EmailMessage
@@ -10,24 +13,20 @@ TEMPLATE_FILE = "Surety_Bond_Template.docx"
 OUTPUT_DIR = "outputs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Fill the bond template with bolded field values
+# Enhanced fill_template: Replaces text within runs, preserves formatting
 def fill_template(template_path, output_path, data):
     doc = Document(template_path)
+
     for para in doc.paragraphs:
-        for key, value in data.items():
-            placeholder = f"{{{{{key}}}}}"
-            if placeholder in para.text:
-                # Create a new run with bolded replacement text
-                inline = para.runs
-                for i in range(len(inline)):
-                    if placeholder in inline[i].text:
-                        text_parts = inline[i].text.split(placeholder)
-                        inline[i].text = text_parts[0]
-                        new_run = para.add_run(value)
-                        new_run.bold = True
-                        if len(text_parts) > 1:
-                            para.add_run(text_parts[1])
-                        break
+        inline = para.runs
+        for i in range(len(inline)):
+            for key, value in data.items():
+                placeholder = f"{{{{{key}}}}}"
+                if placeholder in inline[i].text:
+                    text = inline[i].text.replace(placeholder, value)
+                    inline[i].text = text
+                    inline[i].bold = True  # Make inserted value bold
+
     doc.save(output_path)
 
 # Email the result to Mark
@@ -75,7 +74,6 @@ with st.form("bond_form"):
     }
     submitted = st.form_submit_button("Generate Bond Form")
 
-# On form submit
 if submitted:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_file = f"filled_surety_bond_{timestamp}.docx"
@@ -91,7 +89,4 @@ if submitted:
         st.success("📧 A copy has been emailed to 3gtexan@gmail.com")
     except Exception as e:
         st.warning(f"⚠️ Document created, but email failed to send: {e}")
-
-
-
 
