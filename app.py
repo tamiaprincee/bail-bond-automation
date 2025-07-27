@@ -10,13 +10,24 @@ TEMPLATE_FILE = "Surety_Bond_Template.docx"
 OUTPUT_DIR = "outputs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Fill the bond template
+# Fill the bond template with bolded field values
 def fill_template(template_path, output_path, data):
     doc = Document(template_path)
     for para in doc.paragraphs:
         for key, value in data.items():
-            if f"{{{{{key}}}}}" in para.text:
-                para.text = para.text.replace(f"{{{{{key}}}}}", value)
+            placeholder = f"{{{{{key}}}}}"
+            if placeholder in para.text:
+                # Create a new run with bolded replacement text
+                inline = para.runs
+                for i in range(len(inline)):
+                    if placeholder in inline[i].text:
+                        text_parts = inline[i].text.split(placeholder)
+                        inline[i].text = text_parts[0]
+                        new_run = para.add_run(value)
+                        new_run.bold = True
+                        if len(text_parts) > 1:
+                            para.add_run(text_parts[1])
+                        break
     doc.save(output_path)
 
 # Email the result to Mark
@@ -37,7 +48,7 @@ def send_email_with_attachment(receiver_email, file_path):
         smtp.login(sender_email, app_password)
         smtp.send_message(msg)
 
-# UI
+# Streamlit UI
 st.title("📝 Bail Bond Form Entry")
 
 with st.form("bond_form"):
@@ -80,6 +91,7 @@ if submitted:
         st.success("📧 A copy has been emailed to 3gtexan@gmail.com")
     except Exception as e:
         st.warning(f"⚠️ Document created, but email failed to send: {e}")
+
 
 
 
