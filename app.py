@@ -1,38 +1,33 @@
 import os
 import streamlit as st
 from docx import Document
-from docx.shared import Pt
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
 from datetime import datetime
 import smtplib
 from email.message import EmailMessage
 
-# Constants
+# === Constants ===
 TEMPLATE_FILE = "Surety_Bond_Template.docx"
 OUTPUT_DIR = "outputs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Enhanced fill_template: Replaces text within runs, preserves formatting
+# === Fill Template ===
 def fill_template(template_path, output_path, data):
     doc = Document(template_path)
 
     for para in doc.paragraphs:
-        inline = para.runs
-        for i in range(len(inline)):
+        for run in para.runs:
             for key, value in data.items():
                 placeholder = f"{{{{{key}}}}}"
-                if placeholder in inline[i].text:
-                    text = inline[i].text.replace(placeholder, value)
-                    inline[i].text = text
-                    inline[i].bold = True  # Make inserted value bold
+                if placeholder in run.text:
+                    run.text = run.text.replace(placeholder, value)
+                    run.bold = True  # Bold the inserted value
 
     doc.save(output_path)
 
-# Email the result to Mark
+# === Email Attachment ===
 def send_email_with_attachment(receiver_email, file_path):
     sender_email = "BigDawgBailBondz@gmail.com"
-    app_password = "ebny jvku rexi zkiw"  # Replace with actual app password
+    app_password = "ebny jvku rexi zkiw"  # Replace with your real app password
 
     msg = EmailMessage()
     msg['Subject'] = "New Surety Bond"
@@ -41,13 +36,18 @@ def send_email_with_attachment(receiver_email, file_path):
     msg.set_content("Please find the completed bond form attached.")
 
     with open(file_path, 'rb') as f:
-        msg.add_attachment(f.read(), maintype='application', subtype='octet-stream', filename=os.path.basename(file_path))
+        msg.add_attachment(
+            f.read(),
+            maintype='application',
+            subtype='octet-stream',
+            filename=os.path.basename(file_path)
+        )
 
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(sender_email, app_password)
         smtp.send_message(msg)
 
-# Streamlit UI
+# === Streamlit UI ===
 st.title("📝 Bail Bond Form Entry")
 
 with st.form("bond_form"):
