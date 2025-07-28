@@ -32,7 +32,7 @@ def fill_template(template_path, output_path, data):
 # Email the result to Mark
 def send_email_with_attachment(receiver_email, file_path):
     sender_email = "BigDawgBailBondz@gmail.com"
-    app_password = "your_app_password_here"  # Replace with actual app password
+    app_password = "ebny jvku rexi zkiw"  # Replace with actual app password
 
     msg = EmailMessage()
     msg['Subject'] = "New Surety Bond"
