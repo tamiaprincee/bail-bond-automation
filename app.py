@@ -69,7 +69,8 @@ with st.form("bond_form"):
         "EYES": st.text_input("Eye Color"),
         "COUNTY": st.text_input("County"),
         "BOND": st.text_input("Bond"),
-        "BACKING_AMOUNT": st.text_input("Amount to Back the Bond"),
+        "BACKING_AMOUNT": st.text_input("Amount to Back the Bond - Numeric"),
+        "BACKING_AMOUNT_TEXT": st.text_input("Amount to Back the Bond - Text"),
         "SIGNED_AND_DATED": st.text_input("Signed and Dated (MM/DD/YYYY)")
     }
     submitted = st.form_submit_button("Generate Bond Form")
