@@ -76,6 +76,12 @@ with st.form("bond_form"):
     submitted = st.form_submit_button("Generate Bond Form")
 
 if submitted:
+    # 1. Get the current year automatically
+    current_year = str(datetime.now().year)
+    
+    # 2. Add it to the data dictionary so the 'fill_template' function finds it
+    data["CURRENT_YEAR"] = current_year
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_file = f"filled_surety_bond_{timestamp}.docx"
     output_path = os.path.join(OUTPUT_DIR, output_file)
